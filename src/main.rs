@@ -50,93 +50,190 @@ const REQUEST: u8 = 0x9;
 const VALUE: u16 = 0x03CC;
 const INDEX: u16 = 0x00;
 
-fn build_control_string(
-    effect: &str,
-    speed: &str,
-    brightness: &str,
-    wave_direction: &str,
-) -> Result<Vec<u8>, String> {
-    let mut buf: Vec<u8> = Vec::with_capacity(32);
-
-    buf.push(204);
-    buf.push(22);
-
-    if effect.eq("off") {
-        buf.push(effect_from_str("static")?);
-        buf.fill_with(|| 0);
-        return Ok(buf);
-    }
-
-    buf.push(effect_from_str(effect)?);
-    buf.push(speed_from_str(speed)?);
-    buf.push(brightness_from_str(brightness)?);
-
-    if effect.ne("static") && effect.ne("breath") {
-        buf.append(&mut vec![0; 12]);
-    } else {
-        // TODO: parse colors
-        buf.append(&mut vec![0xFF; 12]);
-    }
-
-    // unused
-    buf.push(0);
-
-    match wave_direction {
-        "rtl" => buf.append(&mut vec![1, 0]),
-        "ltr" => buf.append(&mut vec![0, 1]),
-        _ => buf.append(&mut vec![0, 0]),
-    }
-
-    // unused
-    buf.append(&mut vec![0; 13]);
-
-    Ok(buf)
+#[derive(Debug)]
+enum Effect {
+    Off,
+    Static,
+    Breath,
+    Wave,
+    Hue,
 }
 
-fn effect_from_str(effect: &str) -> Result<u8, String> {
+fn effect_from_str(effect: &str) -> Result<(Effect, u8), String> {
     match effect {
-        "static" => Ok(1),
-        "breath" => Ok(3),
-        "wave" => Ok(4),
-        "hue" => Ok(6),
+        "off" => Ok((Effect::Off, 1)),
+        "static" => Ok((Effect::Static, 1)),
+        "breath" => Ok((Effect::Breath, 3)),
+        "wave" => Ok((Effect::Wave, 4)),
+        "hue" => Ok((Effect::Hue, 6)),
         _ => Err(format!(
-            "invalid effect: {}, choose either 'static', 'breath', 'wave' or 'hue'",
+            "invalid effect: '{}'\nchoose either 'static', 'breath', 'wave' or 'hue'",
             effect,
         )),
     }
 }
 
-fn speed_from_str(speed: &str) -> Result<u8, String> {
-    match speed {
-        "1" => Ok(1),
-        "2" => Ok(2),
-        "3" => Ok(3),
-        "4" => Ok(4),
-        _ => Err(format!(
-            "invalid speed: {}, choose a number from 1 - 4",
-            speed,
-        )),
+fn validate_speed_range(opt_val: Option<u8>) -> Result<u8, String> {
+    if let Some(value) = opt_val {
+        if value >= 1 && value <= 4 {
+            Ok(value)
+        } else {
+            Err(format!("speed must be in range [1..4], found {}", value))
+        }
+    } else {
+        Ok(1)
     }
 }
 
-fn brightness_from_str(brightness: &str) -> Result<u8, String> {
-    match brightness {
-        "1" => Ok(1),
-        "2" => Ok(2),
-        _ => Err(format!(
-            "invalid brightness: {}, choose either 1 or 2",
-            brightness,
-        )),
+fn validate_brightness_range(opt_val: Option<u8>) -> Result<u8, String> {
+    if let Some(value) = opt_val {
+        if value >= 1 && value <= 2 {
+            Ok(value)
+        } else {
+            Err(format!("brightness must be either 1 or 2, found {}", value))
+        }
+    } else {
+        Ok(1)
     }
+}
+
+fn validate_direction(opt_dir: Option<String>) -> Result<(u8, u8), String> {
+    if let Some(dir) = opt_dir {
+        match dir.as_str() {
+            "ltr" => Ok((0, 1)),
+            "rtl" => Ok((1, 0)),
+            s => Err(format!(
+                "direction must be either 'ltr' or 'rtl', found {}",
+                s
+            )),
+        }
+    } else {
+        Ok((0, 0))
+    }
+}
+
+#[derive(Debug)]
+struct Parameters {
+    effect: (Effect, u8),
+    speed: u8,
+    brightness: u8,
+    wave_direction: (u8, u8),
+}
+
+fn parse_parameters(args: &mut pico_args::Arguments) -> Result<Parameters, String> {
+    // parse effect into an enum
+    let effect = match args.subcommand() {
+        Ok(Some(s)) => effect_from_str(&s),
+        Ok(None) => Err(format!("missing effect command")),
+        Err(e) => Err(e.to_string()),
+    }?;
+    // parse speed and check whether it's in range
+    let speed = match args.opt_value_from_str(["-s", "--speed"]) {
+        Ok(val) => validate_speed_range(val),
+        Err(e) => Err(e.to_string()),
+    }?;
+    // parse brightness and check whether it's in range
+    let brightness = match args.opt_value_from_str(["-b", "--brightness"]) {
+        Ok(val) => validate_brightness_range(val),
+        Err(e) => Err(e.to_string()),
+    }?;
+    // parse wave direction
+    let wave_direction = match args.opt_value_from_str(["-d", "--dir"]) {
+        Ok(val) => validate_direction(val),
+        Err(e) => Err(e.to_string()),
+    }?;
+
+    Ok(Parameters {
+        effect,
+        speed,
+        brightness,
+        wave_direction,
+    })
+}
+
+fn build_control_buffer(
+    effect: (Effect, u8),
+    speed: u8,
+    brightness: u8,
+    wave_direction: (u8, u8),
+) -> Vec<u8> {
+    let mut buf: Vec<u8> = Vec::with_capacity(32);
+
+    buf.push(204);
+    buf.push(22);
+
+    if let Effect::Off = effect.0 {
+        buf.push(effect.1);
+        buf.fill_with(|| 0);
+        return buf;
+    }
+
+    buf.push(effect.1);
+    buf.push(speed);
+    buf.push(brightness);
+
+    match effect.0 {
+        Effect::Static | Effect::Breath => {
+            // TODO: parse colors
+            buf.append(&mut vec![0xFF; 12]);
+        }
+        _ => {
+            buf.append(&mut vec![0; 12]);
+        }
+    }
+
+    // unused
+    buf.push(0);
+
+    buf.push(wave_direction.0);
+    buf.push(wave_direction.1);
+
+    // unused
+    buf.append(&mut vec![0; 13]);
+
+    buf
+}
+
+fn print_help() {
+    println!(
+        r#"
+Lenovo Legion 5 Pro 2021 keyboard light controller
+
+Supported modes:
+    off                             Turn all keyboard backlight off.
+    static                          Show static colored light for each zone.
+    breath                          Fade light in and out.
+    wave                            Directed left or right rainbow animation.
+    hue                             Continuously cycle between hues.
+
+USAGE:
+    l5p-kbl-rs mode [options]
+
+OPTIONS:
+    common to all modes
+        -b | --brightness <[1,2]>   Brightness: 1 = dimmer, 2 = brighter
+
+    modes 'breath` | 'wave' | 'hue'
+        -s | --speed <[1..4]>       Animation frequency: 1 = slowest, 4 = fastest
+
+    mode 'wave'
+        -d | --dir 'ltr' | 'rtl'    Set wave animation to go from left to right
+                                    or right to left.
+    "#
+    );
 }
 
 fn main() {
+    let mut args = pico_args::Arguments::from_env();
+    if args.contains(["-h", "--help"]) {
+        print_help();
+        std::process::exit(0);
+    }
     if let Some(device_handle) = rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
-        let device = device_handle.device();
-        println!("found device at address {:04x}", device.address());
-
-        match build_control_string("static", "1", "2", "rtl") {
-            Ok(buf) => {
+        match parse_parameters(&mut args) {
+            Ok(p) => {
+                println!("parameters: {:#?}", &p);
+                let buf = build_control_buffer(p.effect, p.speed, p.brightness, p.wave_direction);
                 match device_handle.write_control(
                     REQUEST_TYPE,
                     REQUEST,
@@ -145,13 +242,13 @@ fn main() {
                     &buf,
                     std::time::Duration::from_secs(1),
                 ) {
-                    Ok(n) => println!("{} bytes transferred", n),
+                    Ok(_) => {}
                     Err(e) => println!("operation unsuccessful: {}", e),
                 }
             }
-            Err(msg) => println!("unable to create command: {}", msg),
+            Err(msg) => println!("unable to parse parameters: {}", msg),
         }
     } else {
-        println!("error: device not found");
+        println!("error: lighting device not found");
     }
 }
