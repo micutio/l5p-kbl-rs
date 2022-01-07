@@ -198,6 +198,8 @@ fn print_help() {
     println!(
         r#"
 Lenovo Legion 5 Pro 2021 keyboard light controller
+Inspired by https://github.com/imShara/l5p-kbl/
+2022 Michael Wagner
 
 Supported modes:
     off                             Turn all keyboard backlight off.
