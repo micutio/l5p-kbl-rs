@@ -112,15 +112,75 @@ fn validate_direction(opt_dir: Option<String>) -> Result<(u8, u8), String> {
     }
 }
 
+fn parse_colors(args: Vec<std::ffi::OsString>) -> Result<Vec<(u8, u8, u8)>, String> {
+    let colors = match args
+        .into_iter()
+        .map(from_hex)
+        .collect::<Result<Vec<(u8, u8, u8)>, String>>()
+    {
+        Ok(vec) => vec,
+        Err(s) => return Err(s),
+    };
+
+    if colors.is_empty() {
+        Err("no colors found".to_string())
+    } else {
+        Ok(colors)
+    }
+}
+
+fn consume(code: &mut std::str::Chars) -> Result<u32, String> {
+    match code.next() {
+        Some(x) => match x.to_digit(16) {
+            Some(x) => Ok(x),
+            None => Err("HtmlColorConversionError::InvalidCharacter".into()),
+        },
+        None => Err("HtmlColorConversionError::InvalidStringLength".into()),
+    }
+}
+
+fn from_hex(code: std::ffi::OsString) -> Result<(u8, u8, u8), String> {
+    // code_str.
+    match code.into_string() {
+        Ok(code_str) => {
+            let mut chars = code_str.chars();
+
+            let red1 = consume(&mut chars)?;
+            let red2 = consume(&mut chars)?;
+            let green1 = consume(&mut chars)?;
+            let green2 = consume(&mut chars)?;
+            let blue1 = consume(&mut chars)?;
+            let blue2 = consume(&mut chars)?;
+
+            Ok((
+                (red1 * 16 + red2) as u8,
+                (green1 * 16 + green2) as u8,
+                (blue1 * 16 + blue2) as u8,
+            ))
+        }
+        Err(_) => Err("OsString to String conversion error".to_string()),
+    }
+}
+
+fn pad_colors(colors: &mut Vec<(u8, u8, u8)>) {
+    if colors.len() < 4 {
+        colors.reserve_exact(4 - colors.len());
+    }
+    while colors.len() < 4 {
+        colors.extend_from_within(colors.len() - 1..colors.len())
+    }
+}
+
 #[derive(Debug)]
 struct Parameters {
     effect: (Effect, u8),
     speed: u8,
     brightness: u8,
     wave_direction: (u8, u8),
+    colors: Vec<(u8, u8, u8)>,
 }
 
-fn parse_parameters(args: &mut pico_args::Arguments) -> Result<Parameters, String> {
+fn parse_parameters(mut args: pico_args::Arguments) -> Result<Parameters, String> {
     // parse effect into an enum
     let effect = match args.subcommand() {
         Ok(Some(s)) => effect_from_str(&s),
@@ -142,12 +202,17 @@ fn parse_parameters(args: &mut pico_args::Arguments) -> Result<Parameters, Strin
         Ok(val) => validate_direction(val),
         Err(e) => Err(e.to_string()),
     }?;
+    // parse colors
+    let mut colors = parse_colors(args.finish())?;
+
+    pad_colors(&mut colors);
 
     Ok(Parameters {
         effect,
         speed,
         brightness,
         wave_direction,
+        colors,
     })
 }
 
@@ -156,6 +221,7 @@ fn build_control_buffer(
     speed: u8,
     brightness: u8,
     wave_direction: (u8, u8),
+    colors: Vec<(u8, u8, u8)>,
 ) -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::with_capacity(32);
 
@@ -173,10 +239,11 @@ fn build_control_buffer(
     buf.push(brightness);
 
     match effect.0 {
-        Effect::Static | Effect::Breath => {
-            // TODO: parse colors
-            buf.append(&mut vec![0xFF; 12]);
-        }
+        Effect::Static | Effect::Breath => colors.iter().for_each(|(r, g, b)| {
+            buf.push(*r);
+            buf.push(*g);
+            buf.push(*b);
+        }),
         _ => {
             buf.append(&mut vec![0; 12]);
         }
@@ -203,22 +270,27 @@ Inspired by https://github.com/imShara/l5p-kbl/
 
 Supported modes:
     off                             Turn all keyboard backlight off.
-    static                          Show static colored light for each zone.
+    static                          Show static coloured light for each zone.
     breath                          Fade light in and out.
     wave                            Directed left or right rainbow animation.
     hue                             Continuously cycle between hues.
 
 USAGE:
-    l5p-kbl-rs mode [options]
+    l5p-kbl-rs mode [options] colour1 [colour2] [colour3] [colour4]
+
+    Colours are given as RGB tripels in hexadecimal form, e.g.: FF00ed,
+    corresponding to each of the four regions on the keyboard, from left to
+    right. If less than four colors are given, then the last colour is repeated
+    for the remaining areas.
 
 OPTIONS:
     common to all modes
         -b | --brightness <[1,2]>   Brightness: 1 = dimmer, 2 = brighter
 
-    modes 'breath` | 'wave' | 'hue'
-        -s | --speed <[1..4]>       Animation frequency: 1 = slowest, 4 = fastest
+    breath | wave | hue
+        -s | --speed <[1..4]>       Animation frequency: 1 = slower, 4 = faster
 
-    mode 'wave'
+    mode wave
         -d | --dir 'ltr' | 'rtl'    Set wave animation to go from left to right
                                     or right to left.
     "#
@@ -227,30 +299,51 @@ OPTIONS:
 
 fn main() {
     let mut args = pico_args::Arguments::from_env();
+
     if args.contains(["-h", "--help"]) {
         print_help();
         std::process::exit(0);
     }
-    if let Some(device_handle) = rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
-        match parse_parameters(&mut args) {
+
+    // println!("{:#?}", parse_parameters(args));
+
+    let exit_code = match rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
+        Some(device_handle) => match parse_parameters(args) {
             Ok(p) => {
-                println!("parameters: {:#?}", &p);
-                let buf = build_control_buffer(p.effect, p.speed, p.brightness, p.wave_direction);
+                // TODO: Find minimal logging frameworks
+                // println!("parameters: {:#?}", &p);
+                let buf = build_control_buffer(
+                    p.effect,
+                    p.speed,
+                    p.brightness,
+                    p.wave_direction,
+                    p.colors,
+                );
+                let timeout = std::time::Duration::from_secs(1);
                 match device_handle.write_control(
                     REQUEST_TYPE,
                     REQUEST,
                     VALUE,
                     INDEX,
                     &buf,
-                    std::time::Duration::from_secs(1),
+                    timeout,
                 ) {
-                    Ok(_) => {}
-                    Err(e) => println!("operation unsuccessful: {}", e),
+                    Ok(_) => 0,
+                    Err(e) => {
+                        eprintln!("operation unsuccessful: {}", e);
+                        1
+                    }
                 }
             }
-            Err(msg) => println!("unable to parse parameters: {}", msg),
+            Err(msg) => {
+                eprintln!("unable to parse parameters: {}", msg);
+                1
+            }
+        },
+        None => {
+            eprintln!("error: lighting device not found");
+            1
         }
-    } else {
-        println!("error: lighting device not found");
-    }
+    };
+    std::process::exit(exit_code);
 }
