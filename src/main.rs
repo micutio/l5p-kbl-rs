@@ -43,6 +43,8 @@
 //! UNUSED             00
 //!
 
+mod gsettings;
+
 const VENDOR_ID: u16 = 0x048D;
 const PRODUCT_ID: u16 = 0xC965;
 const REQUEST_TYPE: u8 = 0x21;
@@ -306,6 +308,23 @@ fn main() {
     }
 
     // println!("{:#?}", parse_parameters(args));
+
+    // let mut child = gsettings::listen(
+    //     "org.gnome.desktop.peripherals.touchpad",
+    //     "send-events",
+    //     |line| {
+    //         let l = line.unwrap();
+    //         if l.contains("enabled") {
+    //             println!("KEYBOARD LIGHT ON");
+    //         }
+    //         if l.contains("disabled") {
+    //             println!("KEYBOARD LIGHT OFF");
+    //         }
+    //     },
+    // )
+    // .unwrap();
+
+    // child.wait();
 
     let exit_code = match rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
         Some(device_handle) => match parse_parameters(args) {
