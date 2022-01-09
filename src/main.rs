@@ -263,6 +263,27 @@ fn build_control_buffer(
     buf
 }
 
+fn set_kbd(param: Parameters) -> Result<(), String> {
+    match rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
+        Some(device_handle) => {
+            let buf = build_control_buffer(
+                param.effect,
+                param.speed,
+                param.brightness,
+                param.wave_direction,
+                param.colors,
+            );
+            let timeout = std::time::Duration::from_secs(1);
+            match device_handle.write_control(REQUEST_TYPE, REQUEST, VALUE, INDEX, &buf, timeout) {
+                Ok(_) => {}
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        None => return Err("error: lighting device not found".to_string()),
+    }
+    Ok(())
+}
+
 fn print_help() {
     println!(
         r#"
@@ -307,60 +328,42 @@ fn main() {
         std::process::exit(0);
     }
 
-    // println!("{:#?}", parse_parameters(args));
+    if args.contains(["-D", "--daemon"]) {
+        todo!("listen to gsettings for changes and adjust keybord light accordingly");
 
-    // let mut child = gsettings::listen(
-    //     "org.gnome.desktop.peripherals.touchpad",
-    //     "send-events",
-    //     |line| {
-    //         let l = line.unwrap();
-    //         if l.contains("enabled") {
-    //             println!("KEYBOARD LIGHT ON");
-    //         }
-    //         if l.contains("disabled") {
-    //             println!("KEYBOARD LIGHT OFF");
-    //         }
-    //     },
-    // )
-    // .unwrap();
+        println!("{:#?}", parse_parameters(args));
 
-    // child.wait();
-
-    let exit_code = match rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
-        Some(device_handle) => match parse_parameters(args) {
-            Ok(p) => {
-                // TODO: Find minimal logging frameworks
-                // println!("parameters: {:#?}", &p);
-                let buf = build_control_buffer(
-                    p.effect,
-                    p.speed,
-                    p.brightness,
-                    p.wave_direction,
-                    p.colors,
-                );
-                let timeout = std::time::Duration::from_secs(1);
-                match device_handle.write_control(
-                    REQUEST_TYPE,
-                    REQUEST,
-                    VALUE,
-                    INDEX,
-                    &buf,
-                    timeout,
-                ) {
-                    Ok(_) => 0,
-                    Err(e) => {
-                        eprintln!("operation unsuccessful: {}", e);
-                        1
-                    }
+        let mut child = gsettings::listen(
+            "org.gnome.desktop.peripherals.touchpad",
+            "send-events",
+            |line| {
+                let l = line.unwrap();
+                if l.contains("enabled") {
+                    println!("KEYBOARD LIGHT ON");
                 }
-            }
+                if l.contains("disabled") {
+                    println!("KEYBOARD LIGHT OFF");
+                }
+            },
+        )
+        .unwrap();
+
+        match child.wait() {
+            Ok(it) => todo!(),
+            Err(err) => return todo!(),
+        };
+    }
+
+    let exit_code = match parse_parameters(args) {
+        Ok(p) => match set_kbd(p) {
+            Ok(_) => 0,
             Err(msg) => {
-                eprintln!("unable to parse parameters: {}", msg);
+                eprintln!("{}", msg);
                 1
             }
         },
-        None => {
-            eprintln!("error: lighting device not found");
+        Err(msg) => {
+            eprintln!("{}", msg);
             1
         }
     };
