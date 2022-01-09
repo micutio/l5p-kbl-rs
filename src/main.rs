@@ -75,7 +75,7 @@ fn effect_from_str(effect: &str) -> Result<(Effect, u8), String> {
 
 fn validate_speed_range(opt_val: Option<u8>) -> Result<u8, String> {
     if let Some(value) = opt_val {
-        if value >= 1 && value <= 4 {
+        if (1..=4).contains(&value) {
             Ok(value)
         } else {
             Err(format!("speed must be in range [1..4], found {}", value))
@@ -87,7 +87,7 @@ fn validate_speed_range(opt_val: Option<u8>) -> Result<u8, String> {
 
 fn validate_brightness_range(opt_val: Option<u8>) -> Result<u8, String> {
     if let Some(value) = opt_val {
-        if value >= 1 && value <= 2 {
+        if (1..=2).contains(&value) {
             Ok(value)
         } else {
             Err(format!("brightness must be either 1 or 2, found {}", value))
@@ -124,7 +124,7 @@ fn parse_parameters(args: &mut pico_args::Arguments) -> Result<Parameters, Strin
     // parse effect into an enum
     let effect = match args.subcommand() {
         Ok(Some(s)) => effect_from_str(&s),
-        Ok(None) => Err(format!("missing effect command")),
+        Ok(None) => Err("missing effect command".to_string()),
         Err(e) => Err(e.to_string()),
     }?;
     // parse speed and check whether it's in range
