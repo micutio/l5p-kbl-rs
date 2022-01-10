@@ -1,9 +1,14 @@
 //! Inspired by https://github.com/paulgb/interactive_process
 //!
-//! Possible things to listen to:
+//! Possible things to monitor:
 //! - keyboard layout
 //!   -  gsettings get org.gnome.desktop.input-sources [sources|current]
 //! - dark/light theme
+//!
+//! Structure:
+//!  - [setting domain], [setting key], [setting value substring], [led parameters]
+//!
+
 use std::io::BufRead;
 
 /// Listen to a gsettings key
