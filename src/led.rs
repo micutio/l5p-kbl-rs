@@ -42,7 +42,7 @@ const REQUEST: u8 = 0x9;
 const VALUE: u16 = 0x03CC;
 const INDEX: u16 = 0x00;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Effect {
     Off,
     Static,
@@ -164,7 +164,7 @@ fn pad_colors(colors: &mut Vec<(u8, u8, u8)>) {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parameters {
     effect: (Effect, u8),
     speed: u8,
