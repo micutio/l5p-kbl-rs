@@ -52,6 +52,7 @@ enum Effect {
 }
 
 impl Effect {
+    /// Map each effect to the corresponding byte.
     fn as_byte(effect: Effect) -> u8 {
         match effect {
             Effect::Off => 1,
@@ -176,6 +177,7 @@ fn pad_colors(colors: &mut Vec<(u8, u8, u8)>) {
     }
 }
 
+/// Available parameters for configuring the keyboard LEDs.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Parameters {
     effect: Effect,
@@ -185,6 +187,7 @@ pub struct Parameters {
     colors: Vec<(u8, u8, u8)>,
 }
 
+/// Parse the LED parameter set from command line arguments.
 pub fn parse_parameters(mut args: pico_args::Arguments) -> Result<Parameters, String> {
     // parse effect into an enum
     let effect = match args.subcommand() {
@@ -221,30 +224,24 @@ pub fn parse_parameters(mut args: pico_args::Arguments) -> Result<Parameters, St
     })
 }
 
-fn build_control_buffer(
-    effect: Effect,
-    speed: u8,
-    brightness: u8,
-    wave_direction: (u8, u8),
-    colors: Vec<(u8, u8, u8)>,
-) -> Vec<u8> {
+fn build_control_buffer(params: Parameters) -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::with_capacity(32);
 
     buf.push(204);
     buf.push(22);
 
-    if let Effect::Off = effect {
-        buf.push(Effect::as_byte(effect));
+    if let Effect::Off = params.effect {
+        buf.push(Effect::as_byte(params.effect));
         buf.fill_with(|| 0);
         return buf;
     }
 
-    buf.push(Effect::as_byte(effect));
-    buf.push(speed);
-    buf.push(brightness);
+    buf.push(Effect::as_byte(params.effect));
+    buf.push(params.speed);
+    buf.push(params.brightness);
 
-    match effect {
-        Effect::Static | Effect::Breath => colors.iter().for_each(|(r, g, b)| {
+    match params.effect {
+        Effect::Static | Effect::Breath => params.colors.iter().for_each(|(r, g, b)| {
             buf.push(*r);
             buf.push(*g);
             buf.push(*b);
@@ -257,8 +254,8 @@ fn build_control_buffer(
     // unused
     buf.push(0);
 
-    buf.push(wave_direction.0);
-    buf.push(wave_direction.1);
+    buf.push(params.wave_direction.0);
+    buf.push(params.wave_direction.1);
 
     // unused
     buf.append(&mut vec![0; 13]);
@@ -266,32 +263,39 @@ fn build_control_buffer(
     buf
 }
 
-pub fn set_led(param: Parameters) -> Result<(), String> {
+/// Set the keyboard LEDs to the given parameters.
+/// Fail if the device cannot be
+/// - found
+/// - acquired with a handle
+/// - written to
+pub fn set_led(parameters: Parameters) -> i32 {
     if let Some(mut device_handle) = rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
-        let buf = build_control_buffer(
-            param.effect,
-            param.speed,
-            param.brightness,
-            param.wave_direction,
-            param.colors,
-        );
+        let buf = build_control_buffer(parameters);
         let timeout = std::time::Duration::from_secs(1);
+
+        // in case of an active kernel driver we have to detach it first, lest we'll get an IO
+        // error trying to send commands to the device
         match device_handle.kernel_driver_active(0) {
-            Ok(b) => {
-                if b {
-                    println!("is kernel attached: {}", b);
-                    // device_handle.set_auto_detach_kernel_driver(true).unwrap();
+            Ok(is_active) => {
+                if is_active {
                     device_handle.detach_kernel_driver(0).unwrap();
                 }
             }
-            Err(e) => return Err(e.to_string()),
-        };
+            Err(e) => {
+                eprintln!("{}", e.to_string());
+                return 1; // don't try anything further if we can't determine kernel driver status
+            }
+        }
+
         match device_handle.write_control(REQUEST_TYPE, REQUEST, VALUE, INDEX, &buf, timeout) {
-            Ok(_) => {}
-            Err(e) => return Err(e.to_string()),
+            Ok(_) => 0,
+            Err(e) => {
+                eprintln!("{}", e.to_string());
+                1
+            }
         }
     } else {
-        return Err("error: lighting device not found".to_string());
+        eprintln!("error: lighting device not found");
+        1
     }
-    Ok(())
 }

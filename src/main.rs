@@ -11,20 +11,14 @@ mod led;
 mod monitor;
 mod msg;
 
-fn subcommand_set(mut args: pico_args::Arguments) -> i32 {
+fn cmd_set(mut args: pico_args::Arguments) -> i32 {
     if args.contains(["-h", "--help"]) {
         println!("{}", msg::HELP_SET);
-        std::process::exit(0);
+        return 0;
     }
 
     match led::parse_parameters(args) {
-        Ok(p) => match led::set_led(p) {
-            Ok(_) => 0,
-            Err(msg) => {
-                eprintln!("error setting kbd: {}", msg);
-                1
-            }
-        },
+        Ok(p) => led::set_led(p),
         Err(msg) => {
             eprintln!("error parsing params: {}", msg);
             1
@@ -32,10 +26,10 @@ fn subcommand_set(mut args: pico_args::Arguments) -> i32 {
     }
 }
 
-fn subcommand_monitor(mut args: pico_args::Arguments) -> i32 {
+fn cmd_monitor(mut args: pico_args::Arguments) -> i32 {
     if args.contains(["-h", "--help"]) {
         println!("{}", msg::HELP_MONITOR);
-        std::process::exit(0);
+        return 0;
     }
 
     // parse key
@@ -66,12 +60,6 @@ fn subcommand_monitor(mut args: pico_args::Arguments) -> i32 {
         m.close().kill().unwrap();
     }
     0
-
-    // alternative: wait for user input to terminate the program
-    // let mut buffer = String::new();
-    // let mut stdin = io::stdin(); // We get `Stdin` here.
-    // stdin.read_line(&mut buffer)?;
-    // Ok(())
 }
 
 fn main() {
@@ -80,9 +68,9 @@ fn main() {
     let exit_code = match args.subcommand() {
         Ok(Some(s)) => {
             if s.eq("set") {
-                subcommand_set(args)
+                cmd_set(args)
             } else if s.eq("monitor") {
-                subcommand_monitor(args)
+                cmd_monitor(args)
             } else {
                 eprintln!("unknown command: {}", s);
                 1
@@ -98,7 +86,7 @@ fn main() {
             }
         }
         Err(e) => {
-            eprintln!("error setting kbd: {}", e);
+            eprintln!("error: {}", e);
             1
         }
     };

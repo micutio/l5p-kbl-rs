@@ -47,9 +47,8 @@ impl Monitor {
                         for (val, params) in &states {
                             if line.contains(val) {
                                 println!("change detected: {}", line);
-                                match led::set_led(params.clone()) {
-                                    Ok(_) => {}
-                                    Err(err) => eprintln!("error setting led: {}", err),
+                                if led::set_led(params.clone()) == 1 {
+                                    eprintln!("error setting led")
                                 }
                                 break;
                             }
