@@ -1,0 +1,76 @@
+[
+    {
+        "domain": "org.gnome.desktop.interface",
+        "key": "gtk-theme",
+        "parameters": [
+            [
+                "dark",
+                {
+                    "effect": "Static",
+                    "speed": 1,
+                    "brightness": 2,
+                    "wave_direction": [
+                        1,
+                        0
+                    ],
+                    "colors": [
+                        [
+                            255,
+                            0,
+                            0
+                        ],
+                        [
+                            255,
+                            0,
+                            100
+                        ],
+                        [
+                            255,
+                            0,
+                            100
+                        ],
+                        [
+                            255,
+                            0,
+                            0
+                        ]
+                    ]
+                }
+            ],
+            [
+                "light",
+                {
+                    "effect": "Off",
+                    "speed": 1,
+                    "brightness": 2,
+                    "wave_direction": [
+                        1,
+                        0
+                    ],
+                    "colors": [
+                        [
+                            0,
+                            0,
+                            0
+                        ],
+                        [
+                            0,
+                            0,
+                            0
+                        ],
+                        [
+                            0,
+                            0,
+                            0
+                        ],
+                        [
+                            0,
+                            0,
+                            0
+                        ]
+                    ]
+                }
+            ]
+        ]
+    }
+]

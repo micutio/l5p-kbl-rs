@@ -42,7 +42,7 @@ const REQUEST: u8 = 0x9;
 const VALUE: u16 = 0x03CC;
 const INDEX: u16 = 0x00;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 enum Effect {
     Off,
     Static,
@@ -51,13 +51,25 @@ enum Effect {
     Hue,
 }
 
-fn effect_from_str(effect: &str) -> Result<(Effect, u8), String> {
+impl Effect {
+    fn as_byte(effect: Effect) -> u8 {
+        match effect {
+            Effect::Off => 1,
+            Effect::Static => 1,
+            Effect::Breath => 3,
+            Effect::Wave => 4,
+            Effect::Hue => 6,
+        }
+    }
+}
+
+fn effect_from_str(effect: &str) -> Result<Effect, String> {
     match effect {
-        "off" => Ok((Effect::Off, 1)),
-        "static" => Ok((Effect::Static, 1)),
-        "breath" => Ok((Effect::Breath, 3)),
-        "wave" => Ok((Effect::Wave, 4)),
-        "hue" => Ok((Effect::Hue, 6)),
+        "off" => Ok(Effect::Off),
+        "static" => Ok(Effect::Static),
+        "breath" => Ok(Effect::Breath),
+        "wave" => Ok(Effect::Wave),
+        "hue" => Ok(Effect::Hue),
         _ => Err(format!(
             "invalid effect: '{}'\nchoose either 'static', 'breath', 'wave' or 'hue'",
             effect,
@@ -164,16 +176,16 @@ fn pad_colors(colors: &mut Vec<(u8, u8, u8)>) {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Parameters {
-    effect: (Effect, u8),
+    effect: Effect,
     speed: u8,
     brightness: u8,
     wave_direction: (u8, u8),
     colors: Vec<(u8, u8, u8)>,
 }
 
-pub(crate) fn parse_parameters(mut args: pico_args::Arguments) -> Result<Parameters, String> {
+pub fn parse_parameters(mut args: pico_args::Arguments) -> Result<Parameters, String> {
     // parse effect into an enum
     let effect = match args.subcommand() {
         Ok(Some(s)) => effect_from_str(&s),
@@ -210,7 +222,7 @@ pub(crate) fn parse_parameters(mut args: pico_args::Arguments) -> Result<Paramet
 }
 
 fn build_control_buffer(
-    effect: (Effect, u8),
+    effect: Effect,
     speed: u8,
     brightness: u8,
     wave_direction: (u8, u8),
@@ -221,17 +233,17 @@ fn build_control_buffer(
     buf.push(204);
     buf.push(22);
 
-    if let Effect::Off = effect.0 {
-        buf.push(effect.1);
+    if let Effect::Off = effect {
+        buf.push(Effect::as_byte(effect));
         buf.fill_with(|| 0);
         return buf;
     }
 
-    buf.push(effect.1);
+    buf.push(Effect::as_byte(effect));
     buf.push(speed);
     buf.push(brightness);
 
-    match effect.0 {
+    match effect {
         Effect::Static | Effect::Breath => colors.iter().for_each(|(r, g, b)| {
             buf.push(*r);
             buf.push(*g);
@@ -254,8 +266,8 @@ fn build_control_buffer(
     buf
 }
 
-pub(crate) fn set_led(param: Parameters) -> Result<(), String> {
-    if let Some(device_handle) = rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
+pub fn set_led(param: Parameters) -> Result<(), String> {
+    if let Some(mut device_handle) = rusb::open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID) {
         let buf = build_control_buffer(
             param.effect,
             param.speed,
@@ -265,7 +277,13 @@ pub(crate) fn set_led(param: Parameters) -> Result<(), String> {
         );
         let timeout = std::time::Duration::from_secs(1);
         match device_handle.kernel_driver_active(0) {
-            Ok(b) => println!("is kernel attached: {}", b), // TODO: try automatic or manual detach
+            Ok(b) => {
+                if b {
+                    println!("is kernel attached: {}", b);
+                    // device_handle.set_auto_detach_kernel_driver(true).unwrap();
+                    device_handle.detach_kernel_driver(0).unwrap();
+                }
+            }
             Err(e) => return Err(e.to_string()),
         };
         match device_handle.write_control(REQUEST_TYPE, REQUEST, VALUE, INDEX, &buf, timeout) {

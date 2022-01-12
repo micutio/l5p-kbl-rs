@@ -9,11 +9,11 @@
 //!  - [setting domain], [setting key], [setting value substring], [led parameters]
 //!
 
-use std::io::BufRead;
+use std::io::{BufRead, Read};
 
-use crate::led;
+use crate::led::{self, Parameters};
 
-pub(crate) struct Monitor {
+pub struct Monitor {
     child_proc: std::process::Child,
 }
 
@@ -46,6 +46,7 @@ impl Monitor {
                     if let Ok(line) = line_result {
                         for (val, params) in &states {
                             if line.contains(val) {
+                                println!("change detected: {}", line);
                                 match led::set_led(params.clone()) {
                                     Ok(_) => {}
                                     Err(err) => eprintln!("error setting led: {}", err),
@@ -72,5 +73,36 @@ impl Monitor {
 
     pub fn close(self) -> std::process::Child {
         self.child_proc
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct LedRule {
+    domain: String,
+    key: String,
+    parameters: Vec<(String, Parameters)>,
+}
+
+pub fn parse_from_file(path: String) -> Result<Vec<Monitor>, String> {
+    let mut file = match std::fs::File::open(path) {
+        Ok(it) => it,
+        Err(err) => return Err(err.to_string()),
+    };
+
+    let mut json_save_state = String::new();
+    match file.read_to_string(&mut json_save_state) {
+        Ok(it) => it,
+        Err(err) => return Err(err.to_string()),
+    };
+
+    match serde_json::from_str::<Vec<LedRule>>(&json_save_state) {
+        Ok(rules) => {
+            let monitors = rules
+                .into_iter()
+                .map(|r| Monitor::new(&r.domain, &r.key, r.parameters).unwrap())
+                .collect::<Vec<Monitor>>();
+            Ok(monitors)
+        }
+        Err(err) => Err(err.to_string()),
     }
 }
