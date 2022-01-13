@@ -39,6 +39,26 @@ impl Monitor {
             .take()
             .expect("Accessing stdout should never fail after passing Stdio::piped().");
 
+        let initial_stdout = std::process::Command::new("gsettings")
+            .arg("get")
+            .arg(domain)
+            .arg(key)
+            .output()
+            .expect("unable to run gsettings")
+            .stdout;
+
+        let mut initial_state = String::new();
+        initial_state.push_str(match std::str::from_utf8(&initial_stdout) {
+            Ok(val) => val,
+            Err(_) => panic!("got non UTF-8 data from git"),
+        });
+
+        for (val, params) in &states {
+            if initial_state.contains(val) && led::set_led(params.clone()) == 1 {
+                eprintln!("error setting initial led")
+            }
+        }
+
         std::thread::spawn(move || {
             std::io::BufReader::new(stdout)
                 .lines()
