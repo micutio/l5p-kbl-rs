@@ -72,5 +72,79 @@
                 }
             ]
         ]
+    },
+    {
+        "domain": "org.gnome.desktop.peripherals.keyboard",
+        "key": "numlock-state",
+        "parameters": [
+            [
+                "false",
+                {
+                    "effect": "Static",
+                    "speed": 1,
+                    "brightness": 2,
+                    "wave_direction": [
+                        1,
+                        0
+                    ],
+                    "colors": [
+                        [
+                            255,
+                            0,
+                            0
+                        ],
+                        [
+                            255,
+                            0,
+                            100
+                        ],
+                        [
+                            255,
+                            0,
+                            100
+                        ],
+                        [
+                            255,
+                            0,
+                            0
+                        ]
+                    ]
+                }
+            ],
+            [
+                "true",
+                {
+                    "effect": "Static",
+                    "speed": 1,
+                    "brightness": 2,
+                    "wave_direction": [
+                        1,
+                        0
+                    ],
+                    "colors": [
+                        [
+                            255,
+                            0,
+                            0
+                        ],
+                        [
+                            255,
+                            0,
+                            100
+                        ],
+                        [
+                            255,
+                            0,
+                            100
+                        ],
+                        [
+                            0,
+                            255,
+                            255
+                        ]
+                    ]
+                }
+            ]
+        ]
     }
 ]
