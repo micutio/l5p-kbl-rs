@@ -42,7 +42,8 @@ const REQUEST: u8 = 0x9;
 const VALUE: u16 = 0x03CC;
 const INDEX: u16 = 0x00;
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "monitor", derive(serde::Serialize, serde::Deserialize))]
 enum Effect {
     Off,
     Static,
@@ -178,7 +179,8 @@ fn pad_colors(colors: &mut Vec<(u8, u8, u8)>) {
 }
 
 /// Available parameters for configuring the keyboard LEDs.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "monitor", derive(serde::Serialize, serde::Deserialize))]
 pub struct Parameters {
     effect: Effect,
     speed: u8,

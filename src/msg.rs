@@ -54,6 +54,7 @@ OPTIONS:
                                 or right to left. Only applies to mode wave
     "#;
 
+#[cfg(feature = "monitor")]
 pub const HELP_MONITOR: &str = r#"
 Lenovo Legion 5 Pro 2021 keyboard light controller
 Inspired by https://github.com/imShara/l5p-kbl/

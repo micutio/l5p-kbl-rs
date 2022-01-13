@@ -3,10 +3,12 @@ name = "l5p-kbl-rs"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 rusb = "0.9"
 pico-args = "0.4.2"
-serde = { version = "1.0.125", features = ["derive"] }
-serde_json = "1.0.64"
+serde = { version = "1.0.125", features = ["derive"], optional=true }
+serde_json = {version = "1.0.64", optional=true}
+
+[features]
+default = ["monitor"]
+monitor = ["serde", "serde_json"]

@@ -8,6 +8,7 @@
 //!
 
 mod led;
+#[cfg(feature = "monitor")]
 mod monitor;
 mod msg;
 
@@ -26,6 +27,12 @@ fn cmd_set(mut args: pico_args::Arguments) -> i32 {
     }
 }
 
+#[cfg(not(feature = "monitor"))]
+fn cmd_monitor(_args: pico_args::Arguments) -> i32 {
+    1
+}
+
+#[cfg(feature = "monitor")]
 fn cmd_monitor(mut args: pico_args::Arguments) -> i32 {
     if args.contains(["-h", "--help"]) {
         println!("{}", msg::HELP_MONITOR);
