@@ -28,7 +28,7 @@ Inspired by https://github.com/imShara/l5p-kbl/
 l5p_kbl-set: directly set led mode and attributes
 
 USAGE:
-    l5p-kbl-rs set mode [options] colour1 [colour2] [colour3] [colour4]
+    l5p-kbl-rs set <LED mode> [options] colour1 [colour2] [colour3] [colour4]
 
     Colours are given as RGB tripels in hexadecimal form, e.g.: FF00ed,
     corresponding to each of the four regions on the keyboard, from left to
@@ -48,13 +48,13 @@ OPTIONS:
                                 Available to all modes.
 
     -s | --speed <[1..4]>       Animation frequency: 1 = slower, 4 = faster
-                                Only applies to modes: breath | wave | hue
+                                Does not apply to modes static and off.
     
     -d | --dir 'ltr' | 'rtl'    Set wave animation to go from left to right
                                 or right to left. Only applies to mode wave
     "#;
 
-#[cfg(feature = "monitor")]
+#[cfg(feature = "gmonitor")]
 pub const HELP_MONITOR: &str = r#"
 Lenovo Legion 5 Pro 2021 keyboard light controller
 Inspired by https://github.com/imShara/l5p-kbl/

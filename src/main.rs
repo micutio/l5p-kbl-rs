@@ -7,9 +7,9 @@
 //! SUBSYSTEM=="usb", ATTR{idVendor}=="048d", ATTR{idProduct}=="c965", MODE="0666"
 //!
 
+#[cfg(feature = "gmonitor")]
+mod g_monitor;
 mod led;
-#[cfg(feature = "monitor")]
-mod monitor;
 mod msg;
 
 fn cmd_set(mut args: pico_args::Arguments) -> i32 {
@@ -27,12 +27,12 @@ fn cmd_set(mut args: pico_args::Arguments) -> i32 {
     }
 }
 
-#[cfg(not(feature = "monitor"))]
+#[cfg(not(feature = "gmonitor"))]
 fn cmd_monitor(_args: pico_args::Arguments) -> i32 {
     1
 }
 
-#[cfg(feature = "monitor")]
+#[cfg(feature = "gmonitor")]
 fn cmd_monitor(mut args: pico_args::Arguments) -> i32 {
     if args.contains(["-h", "--help"]) {
         println!("{}", msg::HELP_MONITOR);
@@ -54,7 +54,7 @@ fn cmd_monitor(mut args: pico_args::Arguments) -> i32 {
         }
     };
 
-    let monitors = match monitor::parse_from_file(path) {
+    let monitors = match g_monitor::parse_from_file(path) {
         Ok(monitors) => monitors,
         Err(e) => {
             eprintln!("{}", e);

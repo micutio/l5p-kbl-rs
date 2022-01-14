@@ -10,5 +10,4 @@ serde = { version = "1.0.125", features = ["derive"], optional=true }
 serde_json = {version = "1.0.64", optional=true}
 
 [features]
-default = ["monitor"]
-monitor = ["serde", "serde_json"]
+gmonitor = ["serde", "serde_json"]
